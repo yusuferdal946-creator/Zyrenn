@@ -222,6 +222,7 @@ class Workspace(context: Context, private val perms: PermissionManager) {
                 root.listFiles()?.forEach { it.deleteRecursively() }
                 stagingDir.listFiles()?.forEach { c -> if (!c.renameTo(File(root, c.name))) { c.copyRecursively(File(root, c.name)); c.deleteRecursively() } }
             } finally { stagingDir.deleteRecursively() }
+            Unit
         }
         if (r.isSuccess) runCatching { postRestore?.invoke() }
         return r

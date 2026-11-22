@@ -50,7 +50,7 @@ class PerfMonitor(private val store: JsonStore? = null) {
 
     /** errors: "etiket: ayrıntı" biçiminde son hata kayıtları. */
     fun report(errors: List<String>): String = buildString {
-        val s = last()
+        val s = this@PerfMonitor.last()
         append(if (s == null) "Henüz ölçüm yok." else "RAM ${s.ramAvailMb}/${s.ramTotalMb} MB boş · Pil %${s.battery}${if (s.charging) " (şarjda)" else ""} · Depolama ${"%.1f".format(s.storageFreeGb)} GB boş · CPU %${s.cpuPct}")
         val iss = issues()
         append("\n\nTespit edilen sorunlar: ").append(if (iss.isEmpty()) "yok" else "\n- " + iss.joinToString("\n- "))
