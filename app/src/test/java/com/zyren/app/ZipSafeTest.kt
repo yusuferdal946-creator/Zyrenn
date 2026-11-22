@@ -10,7 +10,7 @@ import java.util.zip.ZipOutputStream
 
 class ZipSafeTest {
     private fun zip(vararg e: Pair<String, ByteArray>): File {
-        val f = File.createTempFile("z", ".zip")
+        val f = File.createTempFile("zyr", ".zip")
         ZipOutputStream(f.outputStream()).use { z -> e.forEach { (n, b) -> z.putNextEntry(ZipEntry(n)); z.write(b); z.closeEntry() } }
         return f
     }
