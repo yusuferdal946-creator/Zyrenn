@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Varsayılan: açık metin (http) YASAK, yalnızca sistem sertifikaları. İstisna: aynı telefondaki yerel sunucu (127.0.0.1/localhost).
+     Ağ üzerindeki (LAN/PC) sunucular için https gerekir; CIDR/joker destek yok, bu yüzden bilinçli olarak eklenmedi. -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+    </domain-config>
+</network-security-config>

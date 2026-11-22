@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">Zyren</string>
+    <string name="accessibility_desc">Zyren, istediğiniz zaman ekran metnini okur, ekrana dokunur ve geri/ana ekran işlemlerini yapar. Her işlem uygulama içinde onayınıza tabidir.</string>
+</resources>
