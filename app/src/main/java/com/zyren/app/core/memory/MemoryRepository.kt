@@ -1,4 +1,3 @@
-
 package com.zyren.app.core.memory
 
 import kotlinx.serialization.json.*
@@ -34,8 +33,36 @@ class MemoryRepository(private val dao: MemoryDao) {
 
     val all = dao.observeAll()
 
+    /** Yeni hafıza kaydı ekler. Boş ve tekrar eden kayıtları engeller. */
+    suspend fun add(category: String, content: String): Boolean {
+        val cleanContent = content.trim()
+        val cleanCategory = category.trim().ifBlank { "Tercih" }
+
+        if (cleanContent.isBlank()) return false
+        if (dao.findByContent(cleanContent) != null) return false
+
+        if (dao.count() >= MAX) {
+            dao.deleteOldestUnpinned(1)
+            if (dao.count() >= MAX) return false
+        }
+
+        dao.insert(
+            MemoryEntity(
+                category = cleanCategory,
+                content = cleanContent
+            )
+        )
+        return true
+    }
+
     suspend fun edit(m: MemoryEntity, category: String, content: String) =
-        dao.update(m.copy(category = category, content = content.trim(), updatedAt = System.currentTimeMillis()))
+        dao.update(
+            m.copy(
+                category = category,
+                content = content.trim(),
+                updatedAt = System.currentTimeMillis()
+            )
+        )
 
     suspend fun togglePin(m: MemoryEntity) =
         dao.update(m.copy(pinned = !m.pinned))
@@ -47,11 +74,88 @@ class MemoryRepository(private val dao: MemoryDao) {
     /** Modele verilecek kısa hafıza özeti. */
     suspend fun promptContext(limit: Int = 30): String {
         val main = dao.top(limit)
-        if (main.isNotEmpty()) dao.touch(main.map { it.id }, System.currentTimeMillis())
-        val errs = dao.byCategory(ERR, 8).filter { e -> main.none { it.id == e.id } }
+
+        if (main.isNotEmpty()) {
+            dao.touch(main.map { it.id }, System.currentTimeMillis())
+        }
+
+        val errs = dao.byCategory(ERR, 8).filter { e ->
+            main.none { it.id == e.id }
+        }
 
         return (main + errs).joinToString("\n") {
             "- [${it.category}] ${it.content}"
+        }
+    }
+
+    /** Hafızayı JSON dosyasına yedekler. */
+    suspend fun snapshotTo(file: File) {
+        val items = dao.list()
+
+        val json = buildJsonArray {
+            items.forEach { m ->
+                add(
+                    buildJsonObject {
+                        put("category", m.category)
+                        put("content", m.content)
+                        put("pinned", m.pinned)
+                        put("createdAt", m.createdAt)
+                        put("updatedAt", m.updatedAt)
+                        put("importance", m.importance)
+                        put("useCount", m.useCount)
+                        put("lastUsedAt", m.lastUsedAt)
+                    }
+                )
+            }
+        }
+
+        file.parentFile?.mkdirs()
+        file.writeText(json.toString())
+    }
+
+    /** JSON yedeğindeki hafızayı mevcut kayıtlarla birleştirir. */
+    suspend fun mergeFrom(file: File) {
+        if (!file.isFile) return
+
+        val entries = try {
+            Json.parseToJsonElement(file.readText()).jsonArray
+        } catch (_: Exception) {
+            return
+        }
+
+        for (entry in entries) {
+            try {
+                val obj = entry.jsonObject
+                val content = obj["content"]?.jsonPrimitive?.content ?: continue
+                val category = obj["category"]?.jsonPrimitive?.content ?: "Tercih"
+                val cleanContent = content.trim()
+
+                if (cleanContent.isBlank()) continue
+                if (dao.findByContent(cleanContent) != null) continue
+
+                if (dao.count() >= MAX) {
+                    dao.deleteOldestUnpinned(1)
+                    if (dao.count() >= MAX) break
+                }
+
+                dao.insert(
+                    MemoryEntity(
+                        category = category,
+                        content = cleanContent,
+                        pinned = obj["pinned"]?.jsonPrimitive?.booleanOrNull ?: false,
+                        createdAt = obj["createdAt"]?.jsonPrimitive?.longOrNull
+                            ?: System.currentTimeMillis(),
+                        updatedAt = obj["updatedAt"]?.jsonPrimitive?.longOrNull
+                            ?: System.currentTimeMillis(),
+                        importance = obj["importance"]?.jsonPrimitive?.intOrNull ?: 5,
+                        useCount = obj["useCount"]?.jsonPrimitive?.intOrNull ?: 0,
+                        lastUsedAt = obj["lastUsedAt"]?.jsonPrimitive?.longOrNull
+                            ?: System.currentTimeMillis()
+                    )
+                )
+            } catch (_: Exception) {
+                continue
+            }
         }
     }
 
@@ -85,7 +189,7 @@ class MemoryRepository(private val dao: MemoryDao) {
 
             dosya.writeText(veri.toString())
             true
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             false
         }
     }
@@ -106,7 +210,7 @@ class MemoryRepository(private val dao: MemoryDao) {
                 değişiklikListesi = o["değişiklikListesi"]?.jsonArray
                     ?.map { it.jsonPrimitive.content } ?: emptyList()
             )
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
