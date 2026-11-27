@@ -48,7 +48,7 @@ class DecisionEngine {
     )
 
     /** Hangi araç adlarının kritik/onay gerektiren olduğu (Capability riskiyle uyumlu). */
-    private val criticalTools = setOf("sms_gonder", "arama_yap", "dosya_sil", "dosya_yaz", "uygulama_ac")
+    private val criticalTools = setOf("sms_gonder", "mesaj_gonder", "arama_yap", "dosya_sil", "dosya_yaz", "uygulama_ac")
 
     fun decide(userText: String, availableTools: Set<String>): ActionDecision {
         val lower = userText.lowercase()
