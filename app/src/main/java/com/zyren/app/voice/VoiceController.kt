@@ -43,7 +43,7 @@ class VoiceController(
     }
 
     /** Kullanılabilir sesleri döner (TTS motoru hazır değilse boş). */
-    fun availableVoices(): List<TextToSpeech.Voice> = tts?.voices?.toList().orEmpty()
+    fun availableVoices(): List<android.speech.tts.Voice> = tts?.voices?.toList().orEmpty()
 
     /** Ses seçer; yoksa mevcut kalır. */
     fun setVoice(name: String?) {

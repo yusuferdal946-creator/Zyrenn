@@ -434,5 +434,5 @@ class GüvenlikUzmanı : UzmanAjani() {
 /** AnalizUzmanı — Birden fazla uzman çıktısını birleştirir, çelişkileri tespit eder ve tek bir kaliteli cevap üretir. */
 class AnalizUzmanı {
     /** Birden fazla uzman analiz sonucunu birleştirir. */
-    fun birleştir(results: List<UzmanAjani.AnalysisResult>): String = UzmanAjani.birleştir(results)
+    fun birleştir(results: List<UzmanAjani.AnalysisResult>): String { if (results.isEmpty()) return "Henüz analiz yapılmadı."; val enYüksek = results.maxBy { it.güveni }; return "📊 **${enYüksek.uzmanAdı}** (güvenilirlik: ${(enYüksek.güveni * 100).roundToInt()}%)\n\n${enYüksek.öneri}" }
 }

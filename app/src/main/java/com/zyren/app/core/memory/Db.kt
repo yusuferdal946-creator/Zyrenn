@@ -100,7 +100,7 @@ abstract class ZyrenDatabase : RoomDatabase() {
 
     companion object {
         /** v1 → v2: chat tablosuna conversationId eklenir (mevcut satırlar varsayılan 0 sohbetine gider). */
-        val MIGRATION_1_2 = object : Migration(1, 2) {
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
             override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE chat ADD COLUMN conversationId INTEGER NOT NULL DEFAULT 0")
             }

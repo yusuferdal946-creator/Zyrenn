@@ -44,7 +44,6 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
     private val c = (app as ZyrenApp).container
     private fun <T> Flow<T>.state(init: T) = stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), init)
 
-    val messages = c.db.chatDao().observeAll(activeConversation).state(emptyList())
     val conversations = c.db.chatDao().observeConversations().state(emptyList())
     val memories = c.memory.all.state(emptyList())
     val audit = c.db.auditDao().observeRecent().state(emptyList())
@@ -60,6 +59,7 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
     /** Aktif sohbet kimliği (çoklu sohbet). 0 = varsayılan tek sohbet. */
     val activeConversation = MutableStateFlow(0L)
     val notice = MutableStateFlow<String?>(null)
+    val messages = activeConversation.flatMapLatest { cid -> c.db.chatDao().observeAll(cid) }.state(emptyList())
     val approval = MutableStateFlow<PendingApproval?>(null)
     val pendingImage = MutableStateFlow<String?>(null)
 

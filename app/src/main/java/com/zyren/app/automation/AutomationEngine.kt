@@ -14,92 +14,200 @@ import java.time.ZoneId
 import java.util.UUID
 
 class Rule(
-    val id: String, var name: String, val trigger: String, val tool: String, val args: JsonObject,
-    var enabled: Boolean, var lastRun: Long, var runs: Int, var failures: Int, val maxPerDay: Int, var dayKey: String, var todayRuns: Int
+    val id: String,
+    var name: String,
+    val trigger: String,
+    val tool: String,
+    val args: JsonObject,
+    var enabled: Boolean,
+    var lastRun: Long,
+    var runs: Int,
+    var failures: Int,
+    val maxPerDay: Int,
+    var dayKey: String,
+    var todayRuns: Int
 )
 
 /**
- * Kullanıcı kurallarına göre zamanlı görevler. Arka planda YALNIZCA izinli, kritik olmayan araçlar çalışır
- * (kritik işlemler atlanır, onaysız asla yapılmaz). 5 art arda hata → kural otomatik durur. Tüm adımlar geçmişe yazılır.
+ * Kullanıcı kurallarına göre zamanlı görevler.
+ * Arka planda yalnızca izinli ve kritik olmayan araçlar çalışır.
  */
-class AutomationEngine(private val store: JsonStore? = null, private val history: JsonStore? = null, private val ctx: Context? = null, private val idGen: () -> String = { UUID.randomUUID().toString().take(8) }) {
+class AutomationEngine(
+    private val store: JsonStore? = null,
+    private val history: JsonStore? = null,
+    private val ctx: Context? = null,
+    private val idGen: () -> String = {
+        UUID.randomUUID().toString().take(8)
+    }
+) {
     companion object {
         const val MIN_INTERVAL_MIN = 15L
         const val MAX_FAILURES = 5
-        val BACKGROUND_ALLOWED = setOf("pil_durumu", "depolama_durumu", "sistem_raporu", "ikiz_guncelle", "hafiza_bakim", "plan_goster", "yeniden_planla", "bilgi_ara", "dosya_listele")
+
+        val BACKGROUND_ALLOWED = setOf(
+            "pil_durumu",
+            "depolama_durumu",
+            "sistem_raporu",
+            "ikiz_guncelle",
+            "hafiza_bakim",
+            "plan_goster",
+            "yeniden_planla",
+            "bilgi_ara",
+            "dosya_listele"
+        )
     }
+
     val rules = mutableListOf<Rule>()
     private val hist = ArrayDeque<String>()
 
-    init { reload() }
+    init {
+        reload()
+    }
 
-    /** trigger: "gunluk:HH:MM" veya "aralik:DAKIKA" (≥15). Hata mesajı veya null. */
     fun validateTrigger(t: String): String? = when {
-        t.startsWith("aralik:") -> t.removePrefix("aralik:").toLongOrNull().let { m ->
-            if (m == null) "aralık sayı olmalı" else if (m < MIN_INTERVAL_MIN) "aralık en az $MIN_INTERVAL_MIN dk" else null
+        t.startsWith("aralik:") -> {
+            val m = t.removePrefix("aralik:").toLongOrNull()
+            when {
+                m == null -> "aralık sayı olmalı"
+                m < MIN_INTERVAL_MIN -> "aralık en az $MIN_INTERVAL_MIN dk"
+                else -> null
+            }
         }
-        t.startsWith("gunluk:") -> t.removePrefix("gunluk:").split(":").let { p -> if (p.size == 2 && (p[0].toIntOrNull() ?: -1) in 0..23 && (p[1].toIntOrNull() ?: -1) in 0..59) null else "gunluk:HH:MM biçimi" }
+
+        t.startsWith("gunluk:") -> {
+            val p = t.removePrefix("gunluk:").split(":")
+            if (
+                p.size == 2 &&
+                (p[0].toIntOrNull() ?: -1) in 0..23 &&
+                (p[1].toIntOrNull() ?: -1) in 0..59
+            ) null else "gunluk:HH:MM biçimi"
+        }
+
         else -> "tetikleyici 'gunluk:HH:MM' veya 'aralik:DAKIKA' olmalı"
     }
 
-    fun add(name: String, trigger: String, tool: String, args: JsonObject, maxPerDay: Int = 24): Rule {
-        validateTrigger(trigger)?.let { throw IllegalArgumentException(it) }
-        require(rules.size < 30) { "En fazla 30 kural" }
-        val r = Rule(idGen(), name.take(80), trigger, tool, args, true, 0L, 0, 0, maxPerDay.coerceIn(1, 96), "", 0)
-        rules += r; save(); return r
+    fun add(
+        name: String,
+        trigger: String,
+        tool: String,
+        args: JsonObject,
+        maxPerDay: Int = 24
+    ): Rule {
+        validateTrigger(trigger)?.let {
+            throw IllegalArgumentException(it)
+        }
+
+        require(rules.size < 30) {
+            "En fazla 30 kural"
+        }
+
+        val r = Rule(
+            idGen(),
+            name.take(80),
+            trigger,
+            tool,
+            args,
+            true,
+            0L,
+            0,
+            0,
+            maxPerDay.coerceIn(1, 96),
+            "",
+            0
+        )
+
+        rules += r
+        save()
+        return r
     }
 
-    fun remove(id: String) { rules.removeAll { it.id == id }; save() }
-    fun setEnabled(id: String, on: Boolean) { rules.firstOrNull { it.id == id }?.let { it.enabled = on; if (on) it.failures = 0 }; save() }
+    fun remove(id: String) {
+        rules.removeAll { it.id == id }
+        save()
+    }
 
-    /** Duraklat: kuralı geçici olarak kapatır (durum korunur). */
+    fun setEnabled(id: String, on: Boolean) {
+        rules.firstOrNull { it.id == id }?.let {
+            it.enabled = on
+            if (on) it.failures = 0
+        }
+        save()
+    }
+
     fun pause(id: String) = setEnabled(id, false)
-    /** Devam ettir: kuralı yeniden etkinleştirir ve hata sayacını sıfırlar. */
+
     fun resume(id: String) = setEnabled(id, true)
-    /** İptal: kuralı tamamen siler. */
+
     fun cancel(id: String) = remove(id)
 
-/** Görev durum özeti (kullanıcıya gösterim için). */
     fun statusSummary(): String {
         if (rules.isEmpty()) return "Tanımlı görev/kural yok."
+
         val sb = StringBuilder()
+
         rules.forEach { r ->
             val state = when {
                 !r.enabled -> "duraklatıldı"
                 r.failures >= MAX_FAILURES -> "hata nedeniyle durduruldu"
                 else -> "etkin"
             }
-            sb.append("- [").append(state).append(") ").append(r.name)
-                .append(" (").append(r.tool).append(") · bugün ").append(r.todayRuns).append("/").append(r.maxPerDay).append(" çalıştı\n")
+
+            sb.append("- [")
+                .append(state)
+                .append("] ")
+                .append(r.name)
+                .append(" (")
+                .append(r.tool)
+                .append(") · bugün ")
+                .append(r.todayRuns)
+                .append("/")
+                .append(r.maxPerDay)
+                .append(" çalıştı\n")
         }
+
         return sb.toString().trimEnd()
     }
-    /** Uzun görev başlat (arka plan). */
+
     suspend fun baslat(id: String, task: String) {
-        // Context null kontrolü - WorkManager kullanılmazsa hata döndür
-        ctx?.let { context ->
-            val workName = "zyren_task_$id"
-            // Tek seferlik görev için PeriodicWorkRequest yerine OneTimeWorkRequest kullan
-            WorkManager.getInstance(context)
-                .enqueueUniqueWork(
-                    workName,
-                    ExistingWorkPolicy.KEEP,
-                    OneTimeWorkRequestBuilder<AutomationWorker>()
-                        .setInputData(workDataOf("task" to task, "id" to id))
-                        .build()
-                )
-        } ?: run { throw IllegalStateException("Context cannot be null for WorkManager operations") }
+        val context = ctx ?: throw IllegalStateException(
+            "Context cannot be null for WorkManager operations"
+        )
+
+        val workName = "zyren_task_$id"
+
+        WorkManager.getInstance(context).enqueueUniqueWork(
+            workName,
+            ExistingWorkPolicy.KEEP,
+            OneTimeWorkRequestBuilder<AutomationWorker>()
+                .setInputData(workDataOf("task" to task, "id" to id))
+                .build()
+        )
     }
-    /** Uzun görev duraklat. */
-    fun duraklat(id: String) { rules.firstOrNull { it.id == id }?.let { it.enabled = false; save() } }
-    /** Uzun görev devam ettir. */
-    fun devamEttir(id: String) { rules.firstOrNull { it.id == id }?.let { it.enabled = true; save() } }
-    /** Uzun görev iptal et. */
-    fun iptalEt(id: String) { rules.removeAll { it.id == id }; save() }
-    /** Görev ilerleme durumu (sohbet ekranı için). */
+
+    fun duraklat(id: String) {
+        rules.firstOrNull { it.id == id }?.let {
+            it.enabled = false
+            save()
+        }
+    }
+
+    fun devamEttir(id: String) {
+        rules.firstOrNull { it.id == id }?.let {
+            it.enabled = true
+            it.failures = 0
+            save()
+        }
+    }
+
+    fun iptalEt(id: String) {
+        rules.removeAll { it.id == id }
+        save()
+    }
+
     fun uzunGorevDurumu(id: String): String {
         val r = rules.firstOrNull { it.id == id }
-        when {
+
+        return when {
             r == null -> "Görev bulunamadı."
             !r.enabled -> "duraklatıldı"
             r.failures >= MAX_FAILURES -> "hata nedeniyle durduruldu"
@@ -109,23 +217,39 @@ class AutomationEngine(private val store: JsonStore? = null, private val history
 
     fun isDue(r: Rule, now: Long, zone: ZoneId): Boolean {
         if (!r.enabled || r.failures >= MAX_FAILURES) return false
-        val day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
-        if (r.dayKey == day.toString() && r.todayRuns >= r.maxPerDay) return false
+
+        val day = Instant.ofEpochMilli(now)
+            .atZone(zone)
+            .toLocalDate()
+
+        if (r.dayKey == day.toString() && r.todayRuns >= r.maxPerDay) {
+            return false
+        }
+
         return when {
-            r.trigger.startsWith("aralik:") -> (r.trigger.removePrefix("aralik:").toLongOrNull() ?: return false).let { it >= MIN_INTERVAL_MIN && now - r.lastRun >= it * 60_000 }
+            r.trigger.startsWith("aralik:") -> {
+                val minutes = r.trigger
+                    .removePrefix("aralik:")
+                    .toLongOrNull() ?: return false
+
+                minutes >= MIN_INTERVAL_MIN &&
+                    now - r.lastRun >= minutes * 60_000
+            }
+
             r.trigger.startsWith("gunluk:") -> {
                 val p = r.trigger.removePrefix("gunluk:").split(":")
-                val sched = day.atTime(p[0].toInt(), p[1].toInt()).atZone(zone).toInstant().toEpochMilli()
+                val sched = day.atTime(
+                    p[0].toInt(),
+                    p[1].toInt()
+                ).atZone(zone).toInstant().toEpochMilli()
+
                 now >= sched && r.lastRun < sched
             }
+
             else -> false
         }
     }
 
-    /**
-     * interactive=false (arka plan): kritik riskli veya izin listesinde olmayan araçlar ATLANIR.
-     * exec: araç çalıştırıcı (ToolRegistry.execute); riskOf: aracın riski (null = araç yok).
-     */
     suspend fun runDue(
         now: Long,
         zone: ZoneId,
@@ -135,7 +259,11 @@ class AutomationEngine(private val store: JsonStore? = null, private val history
         onlyRuleId: String? = null
     ): List<String> {
         val out = mutableListOf<String>()
-        val day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()
+
+        val day = Instant.ofEpochMilli(now)
+            .atZone(zone)
+            .toLocalDate()
+            .toString()
 
         for (r in rules.toList()) {
             if (onlyRuleId != null && r.id != onlyRuleId) continue
@@ -152,29 +280,57 @@ class AutomationEngine(private val store: JsonStore? = null, private val history
                     continue
                 }
 
-                if (!interactive && (risk == Risk.CRITICAL || r.tool !in BACKGROUND_ALLOWED)) {
-                    log(now, r, "atlandı", "arka planda çalıştırılamaz (onay/izin gerekir)")
+                if (
+                    !interactive &&
+                    (risk == Risk.CRITICAL || r.tool !in BACKGROUND_ALLOWED)
+                ) {
+                    log(
+                        now,
+                        r,
+                        "atlandı",
+                        "arka planda çalıştırılamaz (onay/izin gerekir)"
+                    )
                     out += "${r.name}: atlandı"
                     continue
                 }
 
                 r.lastRun = now
+
                 if (r.dayKey != day) {
                     r.dayKey = day
                     r.todayRuns = 0
                 }
 
                 val res = exec(r.tool, Args(r.args))
+
                 r.runs++
                 r.todayRuns++
 
-                if (res.startsWith("HATA")) r.failures++ else r.failures = 0
-                log(now, r, if (res.startsWith("HATA")) "hata" else "tamam", res.take(160))
+                if (res.startsWith("HATA")) {
+                    r.failures++
+                } else {
+                    r.failures = 0
+                }
+
+                log(
+                    now,
+                    r,
+                    if (res.startsWith("HATA")) "hata" else "tamam",
+                    res.take(160)
+                )
+
                 out += "${r.name}: ${res.take(80)}"
             } catch (e: Exception) {
                 r.lastRun = now
                 r.failures++
-                log(now, r, "hata", (e.message ?: "bilinmeyen hata").take(160))
+
+                log(
+                    now,
+                    r,
+                    "hata",
+                    (e.message ?: "bilinmeyen hata").take(160)
+                )
+
                 out += "${r.name}: hata"
             }
         }
@@ -185,28 +341,73 @@ class AutomationEngine(private val store: JsonStore? = null, private val history
 
     fun history(): List<String> = hist.toList().asReversed()
 
-    private fun log(now: Long, r: Rule, outcome: String, detail: String) {
+    private fun log(
+        now: Long,
+        r: Rule,
+        outcome: String,
+        detail: String
+    ) {
         hist.addLast("$now|${r.name}|$outcome|$detail")
-        while (hist.size > 200) hist.removeFirst()
-        history?.write(buildJsonArray { hist.forEach { add(it) } })
+
+        while (hist.size > 200) {
+            hist.removeFirst()
+        }
+
+        history?.write(buildJsonArray {
+            hist.forEach { add(it) }
+        })
     }
 
     private fun save() {
-        store?.write(buildJsonArray { rules.forEach { r -> add(buildJsonObject {
-            put("id", r.id); put("name", r.name); put("trigger", r.trigger); put("tool", r.tool); put("args", r.args)
-            put("enabled", r.enabled); put("lastRun", r.lastRun); put("runs", r.runs); put("failures", r.failures)
-            put("maxPerDay", r.maxPerDay); put("dayKey", r.dayKey); put("todayRuns", r.todayRuns) }) } })
+        store?.write(buildJsonArray {
+            rules.forEach { r ->
+                add(buildJsonObject {
+                    put("id", r.id)
+                    put("name", r.name)
+                    put("trigger", r.trigger)
+                    put("tool", r.tool)
+                    put("args", r.args)
+                    put("enabled", r.enabled)
+                    put("lastRun", r.lastRun)
+                    put("runs", r.runs)
+                    put("failures", r.failures)
+                    put("maxPerDay", r.maxPerDay)
+                    put("dayKey", r.dayKey)
+                    put("todayRuns", r.todayRuns)
+                })
+            }
+        })
     }
 
     fun reload() {
-        rules.clear(); hist.clear()
-        store?.read()?.forEach { e -> runCatching {
-            val o = e.jsonObject
-            rules += Rule(o["id"]!!.jsonPrimitive.content, o["name"]!!.jsonPrimitive.content, o["trigger"]!!.jsonPrimitive.content,
-                o["tool"]!!.jsonPrimitive.content, o["args"]!!.jsonObject, o["enabled"]!!.jsonPrimitive.boolean, o["lastRun"]!!.jsonPrimitive.long,
-                o["runs"]!!.jsonPrimitive.int, o["failures"]!!.jsonPrimitive.int, o["maxPerDay"]!!.jsonPrimitive.int,
-                o["dayKey"]!!.jsonPrimitive.content, o["todayRuns"]!!.jsonPrimitive.int)
-        } }
-        history?.read()?.forEach { runCatching { hist.addLast(it.jsonPrimitive.content) } }
+        rules.clear()
+        hist.clear()
+
+        store?.read()?.forEach { e ->
+            runCatching {
+                val o = e.jsonObject
+
+                rules += Rule(
+                    o["id"]!!.jsonPrimitive.content,
+                    o["name"]!!.jsonPrimitive.content,
+                    o["trigger"]!!.jsonPrimitive.content,
+                    o["tool"]!!.jsonPrimitive.content,
+                    o["args"]!!.jsonObject,
+                    o["enabled"]!!.jsonPrimitive.boolean,
+                    o["lastRun"]!!.jsonPrimitive.long,
+                    o["runs"]!!.jsonPrimitive.int,
+                    o["failures"]!!.jsonPrimitive.int,
+                    o["maxPerDay"]!!.jsonPrimitive.int,
+                    o["dayKey"]!!.jsonPrimitive.content,
+                    o["todayRuns"]!!.jsonPrimitive.int
+                )
+            }
+        }
+
+        history?.read()?.forEach { item ->
+            runCatching {
+                hist.addLast(item.jsonPrimitive.content)
+            }
+        }
     }
 }
