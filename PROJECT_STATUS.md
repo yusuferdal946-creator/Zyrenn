@@ -1,21 +1,21 @@
-# PROJECT_STATUS — Zyren 0.4.0 (devir notu)
+# PROJECT_STATUS — Zyren 0.5.0 (devir notu)
 Güncelleme: 2026-11-22
 
 ## 0) Gerçek durum — önce bunu okuyun
 - **Derlenmedi.** Yazıldığı ortamda Kotlin derleyicisi, Gradle, Android SDK ve ağ yoktu (kontrol edildi). APK **üretilemedi**.
 - **Çalıştırılmış şeyler (yalnızca bunlar):** `scripts/check_docs.py` (belge bütünlüğü), `scripts/check_policy.py` (statik güvenlik politikası; kasıtlı ihlallerle sınandı ve yakaladı), kaynak dosyalarda parantez dengesi / çapraz başvuru taramaları. Başka hiçbir test çalıştırılmadı.
 - **GitHub Actions çalıştırılmadı, APK üretilmedi** (erişim yok). Bunları çalıştırma adımları: `docs/CI_CALISTIRMA.md`.
-- **91 birim testi yazıldı, hiçbiri çalıştırılmadı** (CI'da çalışacak). Testleri/kodu elle karşılaştırırken 3 gerçek hata bulunup düzeltildi (otomasyon tetikleyici doğrulaması, hafıza çelişki anahtarı, şifreleme kodunda tür hatası).
+- **104 birim testi yazıldı, hiçbiri çalıştırılmadı** (CI'da çalışacak). Testleri/kodu elle karşılaştırırken 3 gerçek hata bulunup düzeltildi (otomasyon tetikleyici doğrulaması, hafıza çelişki anahtarı, şifreleme kodunda tür hatası).
 - **Cihazda (Infinix X6873) hiçbir şey test edilmedi.**
 - Sürümler araştırıldı: AGP 8.9.1 (API 36 için gerekli — doğrulandı), MediaPipe 0.10.27 (dokümandaki güncel; **bakım modunda**), Rhino 1.7.15 (var olduğu doğrulandı). Kotlin 2.0.21, KSP 2.0.21-1.0.28, Compose BOM 2024.10.01, Room 2.6.1, WorkManager 2.9.1, OkHttp 4.12.0 **hafızadan, doğrulanmadı**.
 
-## 0a) CI/belge düzeltmeleri (0.4.0)
+## 0a) CI/belge düzeltmeleri (0.5.0)
 - Workflow yeniden düzenlendi (checks → unit-tests → build / lint / isteğe bağlı emulator-tests); lint artık `continue-on-error` ile gizlenmiyor; test raporları her durumda yüklenir; wrapper artifact yolları açık.
 - `scripts/check_project.py` eklendi: sürüm ve test sayısı tutarlılığı CI'da zorunlu.
-- **Hâlâ yapılamayan:** derleme, 91 birim + 2 cihaz testi, APK, wrapper jar üretimi (bu ortamda mümkün değil). Hiçbiri "tamam" sayılmaz.
+- **Hâlâ yapılamayan:** derleme, 104 birim + 2 cihaz testi, APK, wrapper jar üretimi (bu ortamda mümkün değil). Hiçbiri "tamam" sayılmaz.
 
-## 0b) 0.4.0 değişikliği (bu tur) — yine derlenmedi
-- Kişilik/mizah ayarı eklendi (kod yazıldı, derlenmedi, cihazda denenmedi). Sürüm numaraları 0.4.0'a eşitlendi. Derleme ortamı yine yoktu (Gradle/SDK/ağ yok); APK üretilemedi.
+## 0b) 0.5.0 değişikliği (bu tur) — yine derlenmedi
+- Kişilik/mizah ayarı eklendi (kod yazıldı, derlenmedi, cihazda denenmedi). Sürüm numaraları 0.5.0'a eşitlendi. Derleme ortamı yine yoktu (Gradle/SDK/ağ yok); APK üretilemedi.
 - **Uygulama Atölyesi** ve **Acil durdur** eklendi (KOD YAZILDI, derlenmedi, cihazda denenmedi). Sınır: Atölye uygulamaları kum havuzunda çalışan HTML'dir; gerçek APK değildir (ağ/kamera/telefon erişimi yok). Gerçek APK üretimi (GitHub Actions ile otomatik derleme + kurulum) YAPILMADI; Android kurulum için her seferinde kullanıcı onayı da ister.
 - Açık kaynak merkezi (GitHub lisans/güncellik), bilgi grafiği (metin) ve paralel ajan eklendi (KOD YAZILDI, test edilmedi).
 - **Yapılmadı / sınırlı (şartnameye göre):** uyandırma kelimesi (sürekli mikrofon dinleme pil/gizlilik/Android kısıtı nedeniyle eklenmedi), PDF metin okuma (kütüphane gerekir), ayrı proje çalışma alanları, bildirim geçmişi (gizlilik için bilerek diske yazılmıyor), Telefon–PC eşleştirme, otomatik altyazı çıkarma, GitHub üzerinden otomatik APK üretimi ve bağımlılık analizi, bilgi grafiği görselleştirmesi. Yeniden başlatma sonrası görev devamı: WorkManager kalıcıdır ama cihazda doğrulanmadı.
@@ -45,7 +45,7 @@ Güncelleme: 2026-11-22
 | Parantez dengesi, VM↔UI ve kapsayıcı başvuruları, import hedefleri (betikle) | Temiz |
 | Kotlin derleme | **Yapılamadı** |
 | scripts/check_policy.py (63 araç↔yetki, kritik işlemler, onay hattı, cleartext, yedek) | Geçti (yerelde çalıştırıldı) |
-| Birim testleri (91) | **Çalıştırılmadı** |
+| Birim testleri (104) | **Çalıştırılmadı** |
 | Cihaz / emülatör testi | **Yapılmadı** |
 
 ## 3) BEKLEYEN (öncelik sırasıyla)

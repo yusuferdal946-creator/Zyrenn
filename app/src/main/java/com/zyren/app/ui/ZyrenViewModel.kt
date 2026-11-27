@@ -44,7 +44,8 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
     private val c = (app as ZyrenApp).container
     private fun <T> Flow<T>.state(init: T) = stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), init)
 
-    val messages = c.db.chatDao().observeAll().state(emptyList())
+    val messages = c.db.chatDao().observeAll(activeConversation).state(emptyList())
+    val conversations = c.db.chatDao().observeConversations().state(emptyList())
     val memories = c.memory.all.state(emptyList())
     val audit = c.db.auditDao().observeRecent().state(emptyList())
     val errors = c.db.auditDao().observeErrors().state(emptyList())
@@ -56,6 +57,8 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
 
     val sending = MutableStateFlow(false)
     val progress = MutableStateFlow("")
+    /** Aktif sohbet kimliği (çoklu sohbet). 0 = varsayılan tek sohbet. */
+    val activeConversation = MutableStateFlow(0L)
     val notice = MutableStateFlow<String?>(null)
     val approval = MutableStateFlow<PendingApproval?>(null)
     val pendingImage = MutableStateFlow<String?>(null)
@@ -68,12 +71,15 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
     val terminal = MutableStateFlow<List<String>>(emptyList())
 
     val providerId = MutableStateFlow(c.settings.providerId)
+    val themeMode = MutableStateFlow(c.settings.themeMode)
     val autoFallback = MutableStateFlow(c.settings.autoFallback)
     val humorLevel = MutableStateFlow(c.settings.humorLevel)
     val chatStyle = MutableStateFlow(c.settings.chatStyle)
     val speakReplies = MutableStateFlow(c.settings.speakReplies)
     val conversationMode = MutableStateFlow(c.settings.conversationMode)
     val voiceState = MutableStateFlow("")
+    val speechRate = MutableStateFlow(c.settings.speechRate)
+    val voiceName = MutableStateFlow(c.settings.voiceName)
     val modelFiles = MutableStateFlow<List<String>>(emptyList())
     val resourceInfo = MutableStateFlow<ResourceInfo?>(null)
 
@@ -108,15 +114,29 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
         sendJob = viewModelScope.launch {
             sending.value = true
             val img = pendingImage.value; pendingImage.value = null
+            val cid = activeConversation.value
             var reply: String? = null
             try {
-                reply = c.engine.send(text, img) { progress.value = it }
+                reply = c.engine.send(text, img, cid) { progress.value = it }
             } finally { sending.value = false; progress.value = "" }
             if (reply != null && (fromVoice || speakReplies.value) && c.plugins.isEnabled("voice")) voice.speak(reply)
             else if (fromVoice && conversationMode.value && reply == null) voiceState.value = "Konuşma modu durdu (hata)"
         }
     }
-    fun clearChat() = viewModelScope.launch { c.db.chatDao().clear() }
+    fun clearChat() = viewModelScope.launch { c.db.chatDao().clear(activeConversation.value) }
+
+    // ---- Çoklu sohbet ----
+    /** Yeni bir sohbet başlatır ve ona geçer. */
+    fun newConversation() = viewModelScope.launch {
+        val cid = System.currentTimeMillis()
+        activeConversation.value = cid
+    }
+    fun selectConversation(cid: Long) { activeConversation.value = cid }
+    /** Bir sohbeti ve mesajlarını kalıcı olarak siler. */
+    fun deleteConversation(cid: Long) = viewModelScope.launch {
+        c.db.chatDao().clear(cid)
+        if (activeConversation.value == cid) activeConversation.value = 0L
+    }
 
     // ---- Ses ----
     fun listen() {
@@ -130,8 +150,18 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
     fun setSpeak(v: Boolean) { c.settings.speakReplies = v; speakReplies.value = v }
     fun setConversation(v: Boolean) { c.settings.conversationMode = v; conversationMode.value = v; if (v) listen() else stopVoice() }
 
+    // ---- Ses ayarları ----
+    fun setSpeechRate(v: Float) { c.settings.speechRate = v; speechRate.value = v; voice.setRate(v) }
+    fun setVoiceName(name: String?) { c.settings.voiceName = name; voiceName.value = name; voice.setVoice(name) }
+    fun previewVoice() { voice.previewVoice() }
+    fun voices() = voice.availableVoices().map { it.name }
+
     // ---- Görsel ekleme (analiz için) ----
     fun attachImage(uri: Uri) = viewModelScope.launch(Dispatchers.IO) {
+        if (!ProviderPresets.byId(providerId.value).supportsImages) {
+            notice.value = "Seçili model görsel desteklemiyor. Görsel analizi için Gemini'yi seçin."
+            return@launch
+        }
         runCatching {
             val cr = getApplication<Application>().contentResolver
             val opts = BitmapFactory.Options().apply { inJustDecodeBounds = true }
@@ -147,6 +177,16 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
             .onFailure { notice.value = "Hata: ${it.message}" }
     }
     fun dropImage() { pendingImage.value = null }
+
+    /** Kamera önizlemesinden gelen Bitmap'i görsel olarak ekler (analiz için). */
+    fun attachImageBitmap(bmp: Bitmap) = viewModelScope.launch(Dispatchers.IO) {
+        runCatching {
+            val out = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, 80, out)
+            Base64.encodeToString(out.toByteArray(), Base64.NO_WRAP)
+        }.onSuccess { pendingImage.value = it; notice.value = "Görsel eklendi; sorunu yazıp gönder" }
+            .onFailure { notice.value = "Hata: ${it.message}" }
+    }
 
     // ---- Hafıza ----
     fun addMemory(cat: String, text: String) = viewModelScope.launch {
@@ -290,6 +330,7 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
     fun setAutoFallback(v: Boolean) { c.settings.autoFallback = v; autoFallback.value = v }
     fun setHumor(v: Int) { c.settings.humorLevel = v; humorLevel.value = c.settings.humorLevel }
     fun setStyle(v: Int) { c.settings.chatStyle = v; chatStyle.value = c.settings.chatStyle }
+    fun setThemeMode(v: Int) { c.settings.themeMode = v; themeMode.value = v }
     fun setPermission(cap: Capability, on: Boolean) = c.permissions.setEnabled(cap, on)
     fun setPlugin(id: String, on: Boolean) = c.plugins.setEnabled(id, on)
 
@@ -401,6 +442,10 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
     }
     fun autoToggle(id: String, on: Boolean) { c.automation.setEnabled(id, on); bump() }
     fun autoRemove(id: String) { c.automation.remove(id); bump() }
+    fun autoPause(id: String) { c.automation.pause(id); bump() }
+    fun autoResume(id: String) { c.automation.resume(id); bump() }
+    fun autoCancel(id: String) { c.automation.cancel(id); bump() }
+    fun automationSummary(): String = c.automation.statusSummary()
     fun autoRunNow() = viewModelScope.launch {
         val l = c.automation.runDue(now(), ZoneId.systemDefault(), true, { c.tools.riskOf(it) }, { n, a -> c.tools.execute(n, a) })
         notice.value = if (l.isEmpty()) "Zamanı gelen kural yok" else l.joinToString("; "); bump()
@@ -428,7 +473,7 @@ class ZyrenViewModel(app: Application) : AndroidViewModel(app) {
     private var agentJob: kotlinx.coroutines.Job? = null
     fun runAgent(role: String, task: String) {
         agentJob?.cancel()
-        agentJob = viewModelScope.launch { agentOut.value = "Çalışıyor…"; agentOut.value = c.engine.runAgent(role, task) }
+        agentJob = viewModelScope.launch { agentOut.value = "Çalışıyor…"; agentOut.value = c.engine.runAgent(role, task, activeConversation.value) }
     }
     fun runTask(id: String) {
         val t = c.plans.find(id)?.second ?: return

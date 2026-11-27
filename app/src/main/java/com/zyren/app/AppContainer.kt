@@ -51,7 +51,9 @@ import java.util.concurrent.TimeUnit
 /** Tüm modüller tek yerde bağlanır: tek Zyren sistemi. */
 class AppContainer(context: Context) {
     val appContext: Context = context.applicationContext
-    val db = Room.databaseBuilder(context, ZyrenDatabase::class.java, "zyren.db").build()
+    val db = Room.databaseBuilder(context, ZyrenDatabase::class.java, "zyren.db")
+        .addMigrations(ZyrenDatabase.MIGRATION_1_2)
+        .build()
     val secure by lazy { SecureStore(context) }
     val settings = Settings(context)
     val permissions = PermissionManager(context, db.auditDao())
@@ -69,7 +71,11 @@ class AppContainer(context: Context) {
     val perf = PerfMonitor(JsonStore(File(zdir, "perf.json")))
     val plans = PlanEngine(JsonStore(File(zdir, "plans.json")))
     val knowledge = KnowledgeHub(JsonStore(File(zdir, "knowledge.json")))
-    val automation = AutomationEngine(JsonStore(File(zdir, "automation.json")), JsonStore(File(zdir, "automation_history.json")))
+    val automation = AutomationEngine(
+        JsonStore(File(zdir, "automation.json")),
+        JsonStore(File(zdir, "automation_history.json")),
+        appContext
+    )
     val features = FeatureRegistry(JsonStore(File(zdir, "features.json")))
     val twin = TwinService(appContext, resources, JsonStore(File(zdir, "twin.json")))
     val atelier = Atelier(File(zdir, "miniapps")) { sys, usr -> engine.generate(sys, usr) }

@@ -14,8 +14,9 @@ import java.util.Date
 import java.util.Locale
 
 @Composable
-fun ZyrenTheme(content: @Composable () -> Unit) {
-    val dark = isSystemInDarkTheme()
+fun ZyrenTheme(themeMode: Int = 0, content: @Composable () -> Unit) {
+    val sysDark = isSystemInDarkTheme()
+    val dark = when (themeMode) { 1 -> false; 2 -> true; else -> sysDark }
     val ctx = LocalContext.current
     val scheme = when {
         Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx)

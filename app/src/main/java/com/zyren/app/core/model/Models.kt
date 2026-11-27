@@ -26,6 +26,8 @@ data class ProviderPreset(
     val needsKey: Boolean,
     val isLocal: Boolean,
     val onDevice: Boolean = false,
+    val supportsImages: Boolean = false,
+    val supportsCaching: Boolean = false,
     val note: String = ""
 )
 
@@ -39,7 +41,7 @@ object ProviderPresets {
             "meta-llama/llama-3.3-70b-instruct:free", needsKey = true, isLocal = false),
         ProviderPreset("gemini", "Google Gemini (bulut, ücretsiz katman, görsel destekli)",
             "https://generativelanguage.googleapis.com/v1beta/openai", "gemini-2.0-flash",
-            needsKey = true, isLocal = false),
+            needsKey = true, isLocal = false, supportsImages = true),
         ProviderPreset(MEDIAPIPE, "Yerel model (cihaz içi, MediaPipe .task)", "", "",
             needsKey = false, isLocal = true, onDevice = true,
             note = "Model dosyasını Ayarlar'dan içe aktarın. Araç kullanımı yok, yalnızca sohbet."),

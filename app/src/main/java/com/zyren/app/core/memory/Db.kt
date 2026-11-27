@@ -16,10 +16,11 @@ data class MemoryEntity(
     val lastUsedAt: Long = System.currentTimeMillis()
 )
 
-/** role: user | assistant | error */
+/** role: user | assistant | error. conversationId: çoklu sohbet desteği (0 = varsayılan/tek sohbet). */
 @Entity(tableName = "chat")
 data class ChatEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val conversationId: Long = 0,
     val role: String,
     val content: String,
     val createdAt: Long = System.currentTimeMillis()
@@ -65,12 +66,15 @@ interface MemoryDao {
 
 @Dao
 interface ChatDao {
-    @Query("SELECT * FROM chat ORDER BY id ASC")
-    fun observeAll(): Flow<List<ChatEntity>>
-    @Query("SELECT * FROM (SELECT * FROM chat ORDER BY id DESC LIMIT :n) ORDER BY id ASC")
-    suspend fun recent(n: Int): List<ChatEntity>
+    @Query("SELECT * FROM chat WHERE conversationId = :cid ORDER BY id ASC")
+    fun observeAll(cid: Long): Flow<List<ChatEntity>>
+    @Query("SELECT * FROM (SELECT * FROM chat WHERE conversationId = :cid ORDER BY id DESC LIMIT :n) ORDER BY id ASC")
+    suspend fun recent(cid: Long, n: Int): List<ChatEntity>
+    @Query("SELECT DISTINCT conversationId FROM chat ORDER BY conversationId DESC")
+    fun observeConversations(): Flow<List<Long>>
     @Insert suspend fun insert(c: ChatEntity): Long
-    @Query("DELETE FROM chat") suspend fun clear()
+    @Query("DELETE FROM chat WHERE conversationId = :cid") suspend fun clear(cid: Long)
+    @Query("DELETE FROM chat") suspend fun clearAll()
 }
 
 @Dao
@@ -88,9 +92,18 @@ interface AuditDao {
     suspend fun prune()
 }
 
-@Database(entities = [MemoryEntity::class, ChatEntity::class, AuditEntity::class], version = 1, exportSchema = false)
+@Database(entities = [MemoryEntity::class, ChatEntity::class, AuditEntity::class], version = 2, exportSchema = false)
 abstract class ZyrenDatabase : RoomDatabase() {
     abstract fun memoryDao(): MemoryDao
     abstract fun chatDao(): ChatDao
     abstract fun auditDao(): AuditDao
+
+    companion object {
+        /** v1 → v2: chat tablosuna conversationId eklenir (mevcut satırlar varsayılan 0 sohbetine gider). */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE chat ADD COLUMN conversationId INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+    }
 }

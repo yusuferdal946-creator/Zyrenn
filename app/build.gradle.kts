@@ -13,8 +13,8 @@ android {
         applicationId = "com.zyren.app"
         minSdk = 26
         targetSdk = 35   // Android 16 (API 36) hedefine geçiş, cihaz testlerinden sonra (bkz. docs/ANDROID16.md)
-        versionCode = 4
-        versionName = "0.4.0"
+        versionCode = 5
+        versionName = "0.5.0"
         ndk { abiFilters += listOf("arm64-v8a") }
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

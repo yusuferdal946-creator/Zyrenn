@@ -23,6 +23,8 @@ class VoiceController(
     private var tts: TextToSpeech? = null
     private var ttsReady = false
     var onSpeakDone: (() -> Unit)? = null
+    var speechRate: Float = 1.0f
+    var voiceName: String? = null
 
     init {
         tts = TextToSpeech(ctx) { status ->
@@ -40,9 +42,33 @@ class VoiceController(
         }
     }
 
+    /** Kullanılabilir sesleri döner (TTS motoru hazır değilse boş). */
+    fun availableVoices(): List<TextToSpeech.Voice> = tts?.voices?.toList().orEmpty()
+
+    /** Ses seçer; yoksa mevcut kalır. */
+    fun setVoice(name: String?) {
+        voiceName = name
+        if (name == null || !ttsReady) return
+        val v = availableVoices().firstOrNull { it.name == name } ?: return
+        tts?.setVoice(v)
+    }
+
+    /** Konuşma hızını ayarlar (0.5 … 2.0). */
+    fun setRate(rate: Float) {
+        speechRate = rate.coerceIn(0.5f, 2.0f)
+        if (ttsReady) tts?.setSpeechRate(speechRate)
+    }
+
+    /** Seçili sesle kısa bir önizleme okur. */
+    fun previewVoice() {
+        if (!ttsReady) return
+        speak("Zyren sesli asistanı. Bu sesi işitiyorsunuz.")
+    }
+
     fun speak(text: String) {
         if (!ttsReady) { onSpeakDone?.invoke(); return }
         val clean = text.replace(Regex("[*#`_>]"), "").take(1500)
+        tts?.setSpeechRate(speechRate)
         tts?.speak(clean, TextToSpeech.QUEUE_FLUSH, null, "zyren")
     }
 

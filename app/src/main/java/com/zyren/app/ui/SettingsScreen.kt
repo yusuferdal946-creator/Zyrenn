@@ -25,6 +25,9 @@ fun SettingsScreen(vm: ZyrenViewModel) {
     val errors by vm.errors.collectAsStateWithLifecycle()
     val humor by vm.humorLevel.collectAsStateWithLifecycle()
     val style by vm.chatStyle.collectAsStateWithLifecycle()
+    val theme by vm.themeMode.collectAsStateWithLifecycle()
+    val rate by vm.speechRate.collectAsStateWithLifecycle()
+    val vName by vm.voiceName.collectAsStateWithLifecycle()
     val preset = ProviderPresets.byId(selected)
     var model by remember(selected) { mutableStateOf(vm.modelFor(preset)) }
     var url by remember(selected) { mutableStateOf(vm.urlFor(preset)) }
@@ -90,6 +93,32 @@ fun SettingsScreen(vm: ZyrenViewModel) {
         Text("Ciddi konularda mizah otomatik geri çekilir. Bu ayar yalnızca konuşma üslubunu değiştirir; izin ve güvenlik kurallarına dokunmaz.",
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 4.dp))
 
+        SectionTitle("Tema")
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            listOf(0 to "Sistem", 1 to "Aydınlık", 2 to "Karanlık").forEach { (v, n) ->
+                FilterChip(selected = theme == v, onClick = { vm.setThemeMode(v) }, label = { Text(n) })
+            }
+        }
+
+        SectionTitle("Ses ayarları")
+        Text("Konuşma hızı: %${(rate * 100).toInt()}", style = MaterialTheme.typography.labelLarge)
+        Slider(value = rate, onValueChange = { vm.setSpeechRate(it) }, valueRange = 0.5f..2.0f)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Ses", Modifier.weight(1f))
+            OutlinedButton(onClick = { vm.previewVoice() }) { Text("Önizleme") }
+        }
+        val voices = vm.voices()
+        if (voices.isEmpty()) {
+            Text("Kullanılabilir ses bulunamadı (TTS motoru hazır değil).", style = MaterialTheme.typography.bodySmall)
+        } else {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected = vName == null, onClick = { vm.setVoiceName(null) }, label = { Text("Varsayılan") })
+                voices.take(8).forEach { name ->
+                    FilterChip(selected = vName == name, onClick = { vm.setVoiceName(name) }, label = { Text(name.take(20)) })
+                }
+            }
+        }
+
         SectionTitle("Cihaz kaynakları")
         Text(res?.summary() ?: "Ölçülüyor…")
         OutlinedButton(onClick = { vm.refreshResources() }) { Text("Yenile") }
@@ -106,7 +135,7 @@ fun SettingsScreen(vm: ZyrenViewModel) {
         SectionTitle("Sohbet")
         OutlinedButton(onClick = { confirmChat = true }) { Text("Sohbet geçmişini temizle") }
         SectionTitle("Hakkında")
-        Text("Zyren 0.4.0 · Derleme ve cihaz testi bekliyor; durum için PROJECT_STATUS.md")
+        Text("Zyren 0.5.0 · Derleme ve cihaz testi bekliyor; durum için PROJECT_STATUS.md")
     }
     if (confirmChat) ConfirmDialog("Sohbeti temizle", "Sohbet geçmişi silinecek (hafıza etkilenmez).",
         { confirmChat = false }) { vm.clearChat(); confirmChat = false }

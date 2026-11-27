@@ -48,6 +48,46 @@ class MemoryRepository(private val dao: MemoryDao) {
         return (main + errs).joinToString("\n") { "- [${it.category}] ${it.content}" }
     }
 
+    /** Proje hafırası: her proje için ayrı JSON kaydı (.zyren/projeId.json). */
+    data class ProjeBilgileri(val projeId: String, val ad: String, val sonAktivite: Long, val değişiklikListesi: List<String>)
+    /** Projeyi kaydet (JSON olarak .zyren klasörüne). */
+    suspend fun projeKaydet(projeId: String, ad: String, değişiklikler: List<String>): Boolean {
+        try {
+            val dosya = File("data/zyren/${projeId}.json")
+            dosya.parentFile?.mkdirs()
+            dosya.writeText(buildJsonArray {
+                add(buildJsonObject {
+                    put("projeId", projeId)
+                    put("ad", ad)
+                    put("sonAktivite", System.currentTimeMillis())
+                    put("değişiklikListesi", değişiklikler)
+                })
+            })
+            return true
+        } catch (e: Exception) {
+            return false
+        }
+    }
+    /** Kaydedilmiş projeyi yükle. */
+    suspend fun projeYukle(projeId: String): ProjeBilgileri? {
+        val dosya = File("data/zyren/${projeId}.json")
+        if (!dosya.isFile) return null
+        Json.parseToJsonElement(dosya.readText()).jsonArray.forEach { obj ->
+            val o = obj.jsonObject
+            return ProjeBilgileri(
+                projeId = o["projeId"]?.jsonPrimitive?.content ?: projeId,
+                ad = o["ad"]?.jsonPrimitive?.content ?: ad,
+                sonAktivite = o["sonAktivite"]?.jsonPrimitive?.content?.toLong() ?: System.currentTimeMillis(),
+                değişiklikListesi = o["değişiklikListesi"]?.jsonArray?.map { it.jsonPrimitive?.content ?: "" } ?: emptyList()
+            )
+        }
+        return null
+    }
+    /** Proje aktivite tarihini güncelle. */
+    suspend fun projeAktiviteGüncelle(projeId: String) {
+        projeYukle(projeId)?.let { it.copy(sonAktivite = System.currentTimeMillis()) }
+    }
+
     // ---- Cihazlar arası taşıma: çalışma alanındaki .zyren/memory.json ----
     suspend fun snapshotTo(file: File) {
         val arr = buildJsonArray {

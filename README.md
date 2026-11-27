@@ -1,4 +1,4 @@
-# Zyren 0.4.0
+# Zyren 0.5.0
 
 Kişisel, modüler, Türkçe yapay zekâ asistanı (Android · Kotlin + Jetpack Compose). Hedef cihaz: Infinix X6873, Android 16.
 Ücretsiz teknolojiler önceliklidir; ücretli hiçbir şey zorunlu değildir.
@@ -19,7 +19,7 @@ Kişisel, modüler, Türkçe yapay zekâ asistanı (Android · Kotlin + Jetpack 
 Dosya sekmesi > **🔒 Şifreli dışa aktar**: AES-256-GCM, parola ≥10 karakter. Parola hiçbir yerde saklanmaz; **kaybederseniz paket kurtarılamaz.** "ZIP dışa aktar (ŞİFRESİZ)" ayrıca durur. APK'yı ve test sonuçlarını üretme adımları: `docs/CI_CALISTIRMA.md`.
 
 ## 1b) CI ne yapar
-Workflow adı **CI** (`.github/workflows/build.yml`). Her yüklemede sırayla: proje/sürüm/belge denetimi → gizli anahtar taraması → güvenlik politikası → **91 birim testi** → APK derlemesi (`zyren-debug-apk`) ve lint (ayrı iş) → Gradle Wrapper (`gradle-wrapper-dosyalari`). Test ve lint raporları artifact olarak yüklenir. 2 emülatör testi yalnızca Actions > CI > Run workflow > "emulator" işaretlenerek çalışır; henüz hiç çalıştırılmadı.
+Workflow adı **CI** (`.github/workflows/build.yml`). Her yüklemede sırayla: proje/sürüm/belge denetimi → gizli anahtar taraması → güvenlik politikası → **104 birim testi** → APK derlemesi (`zyren-debug-apk`) ve lint (ayrı iş) → Gradle Wrapper (`gradle-wrapper-dosyalari`). Test ve lint raporları artifact olarak yüklenir. 2 emülatör testi yalnızca Actions > CI > Run workflow > "emulator" işaretlenerek çalışır; henüz hiç çalıştırılmadı.
 **Durum: CI henüz hiç çalıştırılmadı; derleme ve testlerin geçtiği DOĞRULANMADI.** Gerçek sonuçlar `TEST_RESULTS.md`'de.
 
 ## 2) İlk kurulum (telefonda)

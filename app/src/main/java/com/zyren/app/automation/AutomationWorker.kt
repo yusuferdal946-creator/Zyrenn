@@ -1,3 +1,4 @@
+
 package com.zyren.app.automation
 
 import android.content.Context
@@ -7,18 +8,69 @@ import com.zyren.app.ZyrenApp
 import com.zyren.app.core.security.Capability
 import java.time.ZoneId
 
-/**
- * Arka plan görevi (WorkManager, ≥15 dk, yeniden başlatmada kalıcı). Duraklatılmışsa, kilit modundaysa veya
- * AUTOMATION_RUN kapalıysa HİÇBİR ŞEY çalıştırmaz. Kritik araçlar arka planda asla çalışmaz (motor atlar).
- */
-class AutomationWorker(ctx: Context, params: WorkerParameters) : CoroutineWorker(ctx, params) {
+class AutomationWorker(
+    ctx: Context,
+    params: WorkerParameters
+) : CoroutineWorker(ctx, params) {
+
     override suspend fun doWork(): Result {
-        val c = (applicationContext as ZyrenApp).container
+        val app = applicationContext as ZyrenApp
+        val c = app.container
+
         runCatching { c.perfSample() }
-        if (c.settings.automationPaused || c.permissions.lockdown.value || c.permissions.enabled.value[Capability.AUTOMATION_RUN] != true) return Result.success()
-        runCatching {
-            c.automation.runDue(System.currentTimeMillis(), ZoneId.systemDefault(), false, { c.tools.riskOf(it) }, { n, a -> c.tools.execute(n, a) })
-        }.onFailure { c.permissions.note("OTOMASYON", "arka plan", "hata: ${it.message}") }
-        return Result.success()
+
+        // Güvenlik koşulları sağlanmıyorsa bu turu atla.
+        // Periyodik görev devam etsin diye failure döndürme.
+        if (
+            c.settings.automationPaused ||
+            c.permissions.lockdown.value ||
+            c.permissions.enabled.value[Capability.AUTOMATION_RUN] != true
+        ) {
+            return Result.success()
+        }
+
+        val requestedId = inputData.getString("id")
+        val task = inputData.getString("task") ?: "periyodik otomasyon"
+
+        return try {
+            val now = System.currentTimeMillis()
+            val zone = ZoneId.systemDefault()
+
+            // ID verilmişse yalnızca o kuralı, verilmemişse
+            // zamanı gelen bütün kuralları kontrol et.
+            val rule = requestedId?.let { id ->
+                c.automation.rules.firstOrNull {
+                    it.id == id && it.enabled
+                }
+            }
+
+            if (requestedId != null && rule == null) {
+                return Result.success()
+            }
+
+            val outcomes = c.automation.runDue(
+                now = now,
+                zone = zone,
+                interactive = false,
+                riskOf = { name -> c.tools.riskOf(name) },
+                exec = { name, args -> c.tools.execute(name, args) },
+                onlyRuleId = requestedId
+            )
+
+            if (outcomes.isEmpty()) {
+                Result.success()
+            } else {
+                Result.success()
+            }
+        } catch (e: Exception) {
+            runCatching {
+                c.permissions.note(
+                    "OTOMASYON",
+                    task,
+                    "hata: ${e.message ?: "bilinmeyen hata"}"
+                )
+            }
+            Result.retry()
+        }
     }
 }

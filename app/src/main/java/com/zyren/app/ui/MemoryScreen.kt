@@ -5,6 +5,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -17,17 +18,24 @@ fun MemoryScreen(vm: ZyrenViewModel) {
     var editing by remember { mutableStateOf<MemoryEntity?>(null) }
     var adding by remember { mutableStateOf(false) }
     var confirmClear by remember { mutableStateOf(false) }
+    var query by rememberSaveable { mutableStateOf("") }
+
+    val filtered = if (query.isBlank()) list else list.filter {
+        it.content.contains(query, ignoreCase = true) || it.category.contains(query, ignoreCase = true)
+    }
 
     Column(Modifier.fillMaxSize().padding(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+            OutlinedTextField(query, { query = it }, Modifier.weight(1f), placeholder = { Text("Ara…") }, singleLine = true)
             Button(onClick = { adding = true }) { Text("+ Ekle") }
             OutlinedButton(onClick = { confirmClear = true }, enabled = list.isNotEmpty()) { Text("Tümünü sil") }
         }
-        Text("${list.size}/${MemoryRepository.MAX} kayıt · sabitlenenler otomatik silinmez",
+        Text("${filtered.size}/${list.size} kayıt · sabitlenenler otomatik silinmez",
             style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(vertical = 6.dp))
         if (list.isEmpty()) Text("Hafıza boş. Sohbette \"hatırla: ...\" yaz veya + Ekle'ye bas.")
+        else if (filtered.isEmpty()) Text("Arama sonucu yok.")
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(list, key = { it.id }) { m ->
+            items(filtered, key = { it.id }) { m ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp)) {
                         Text((if (m.pinned) "📌 " else "") + m.category, style = MaterialTheme.typography.labelMedium)

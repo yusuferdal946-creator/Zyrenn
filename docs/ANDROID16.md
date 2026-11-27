@@ -35,7 +35,7 @@ Durum: araştırma ve kod düzeltmesi yapıldı; **hiçbir madde cihazda test ed
 - 16 KB sayfa boyutu: MediaPipe yerel kütüphanelerinin uyumu doğrulanmadı (4 KB sayfalı cihazlarda sorun yok).
 
 
-## 0.4.0 derleme uyumluluk durumu (DOĞRULANMADI — derleme yapılamadı)
+## 0.5.0 derleme uyumluluk durumu (DOĞRULANMADI — derleme yapılamadı)
 - AGP 8.9.1 ↔ Gradle 8.11.1 ↔ JDK 17: sürüm tablosuna göre uyumlu olması beklenir; CI'da doğrulanacak.
 - Kotlin 2.0.21 ↔ KSP 2.0.21-1.0.28 ↔ Compose derleyici eklentisi 2.0.21: aynı Kotlin sürümü; uyumlu olması beklenir.
 - compileSdk 36 (AGP 8.9.1 destekler); targetSdk 35 bilerek bırakıldı (davranış değişiklikleri cihaz testinden sonra ele alınacak).

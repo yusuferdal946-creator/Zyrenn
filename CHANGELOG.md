@@ -1,8 +1,8 @@
 # Değişiklik Günlüğü
-## 0.4.0 — 2026-11-22 (derlenmedi, test edilmedi)
+## 0.5.0 — 2026-11-22 (derlenmedi, test edilmedi)
 - Eklendi: Kişilik ve mizah ayarı (`core/Personality.kt`): mizah yoğunluğu (Kapalı/Az/Orta/Yüksek) ve konuşma tarzı (Dengeli/Resmî/Teknik/Samimi); Ayarlar'dan değiştirilir, sistem istemine yönerge olarak eklenir. Ciddi konularda mizah geri çekilir; duygu tahmini kesin gerçek sayılmaz.
 - Eklendi: `PersonalityTest` (3 birim testi; toplam 76, hiçbiri çalıştırılmadı).
-- Düzeltildi: sürüm numarası tutarsızlığı (build.gradle 0.3.0 / ayarlar ekranı 0.2.0) → 0.4.0, versionCode 4.
+- Düzeltildi: sürüm numarası tutarsızlığı (build.gradle 0.3.0 / ayarlar ekranı 0.2.0) → 0.5.0, versionCode 4.
 - Eklendi: **Uygulama Atölyesi** (`atelier/`, `ui/AtelierScreen.kt`, `core/tools/AtelierTools.kt`): "şunu yap" denince Zyren modelle tek dosyalık HTML uygulama üretir; çıktıyı `MiniAppGuard` ile denetler (ağ/dış kaynak/eval/kamera/yönlendirme yasak; ihlalde geri bildirimle en çok 3 deneme; geçemeyen asla kaydedilmez), sürümler (20'ye kadar, geri alma), kilitli WebView'de çalıştırır (ağ yükü kapalı, tüm istekler engelli, CSP, izin istekleri reddedilir), çalışma anı JS hatasını yakalayıp "Zyren düzelt" ile düzelttirir, ana ekrana kısayol ekler. 6 araç (`atolye_*`), 2 yeni yetki: APP_BUILD (geri alınabilir), APP_DELETE (kritik, onaylı).
 - Eklendi: **⛔ Acil durdur** (her ekranda): kilit modu + sohbet/ajan/Atölye üretimi iptal + ses durdur + otomasyon duraklat + bekleyen onayı reddet; kilidi yalnızca kullanıcı açar.
 - Eklendi: **Açık kaynak merkezi** (`acik_kaynak_ara`, `acik_kaynak_incele`): GitHub API'siyle (anahtarsız) lisans uyumu, bakım güncelliği, arşiv bilgisi ve öneri; kod indirmez/eklemez, bağımlılık analizi yapmaz.

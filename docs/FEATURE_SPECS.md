@@ -97,11 +97,11 @@ Durum: hepsi **KOD YAZILDI — derlenmedi, cihazda test edilmedi**. "Gerçek ola
 Hâlâ PLANLANDI: **Telefon–PC bağlantısı** (yalnızca ZIP taşıma var; kimlik doğrulamalı şifreli aktarım tasarımı gerekir), **LiteRT-LM geçişi**, **şifreli yedek dışa aktarma**.
 
 
-## Ek: Uygulama Atölyesi (0.4.0) — KOD YAZILDI, test edilmedi
+## Ek: Uygulama Atölyesi (0.5.0) — KOD YAZILDI, test edilmedi
 - Amaç: kullanıcı ne istediğini söyler; Zyren tek dosyalık HTML mini uygulama üretir, doğrular, sürümler, çalıştırır.
 - Güvenlik sınırı: `MiniAppGuard` (yasak kalıplar, boyut sınırı), kilitli WebView (ağ yükü kapalı, istekler engelli, CSP, izin reddi), geçemeyen çıktı kaydedilmez, silme kritik+onaylı, sürümler geri alınabilir.
 - Sınırlar: gerçek APK değil; kamera/mikrofon/konum/ağ/telefon erişimi yok. Model kalitesi sağlayıcıya bağlı.
 - Test gereksinimi: birim (yazıldı: MiniAppGuardTest, AtelierTest) + cihazda üretim/çalıştırma/kısayol denemesi.
 
-## Ek: Acil durdur (0.4.0) — KOD YAZILDI, test edilmedi
+## Ek: Acil durdur (0.5.0) — KOD YAZILDI, test edilmedi
 - Her ekranda düğme: kilit modu, görev iptali, otomasyon duraklatma, ses durdurma. Test gereksinimi: cihazda uzun bir görev sırasında deneme.

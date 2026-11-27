@@ -18,4 +18,13 @@ class PersonalityTest {
         assertEquals(3, Personality.clampStyle(42))
         assertNotNull(Personality.directive(-1, 99))
     }
+    @Test fun coreDirectivePresent() {
+        val d = Personality.coreDirective()
+        assertTrue(d.contains("yazım hatası")); assertTrue(d.contains("uydurma")); assertTrue(d.contains("onay"))
+    }
+    @Test fun turkishTypoScore() {
+        assertTrue(Personality.turkishTypoScore("merhaba", "merhaba") == 1.0)
+        assertTrue(Personality.turkishTypoScore("merhaba", "merhaba") > Personality.turkishTypoScore("merhaba", "xyz"))
+        assertTrue(Personality.turkishTypoScore("pil", "pıl") > 0.5)
+    }
 }

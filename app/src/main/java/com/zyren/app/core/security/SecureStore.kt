@@ -86,6 +86,17 @@ class Settings(context: Context) {
     var simulationMode: Boolean
         get() = p.getBoolean("simulation", false)
         set(v) { p.edit().putBoolean("simulation", v).apply() }
+    /** Tema: 0 = sistem, 1 = aydınlık, 2 = karanlık */
+    var themeMode: Int
+        get() = p.getInt("theme", 0).coerceIn(0, 2)
+        set(v) { p.edit().putInt("theme", v.coerceIn(0, 2)).apply() }
+    /** Konuşma hızı (0.5 … 2.0) ve seçili ses adı. */
+    var speechRate: Float
+        get() = p.getFloat("speech_rate", 1.0f).coerceIn(0.5f, 2.0f)
+        set(v) { p.edit().putFloat("speech_rate", v.coerceIn(0.5f, 2.0f)).apply() }
+    var voiceName: String?
+        get() = p.getString("voice_name", null)
+        set(v) { p.edit().putString("voice_name", v).apply() }
     fun model(pr: ProviderPreset) = p.getString("model_${pr.id}", null) ?: pr.model
     fun baseUrl(pr: ProviderPreset) = p.getString("url_${pr.id}", null) ?: pr.baseUrl
     fun save(pr: ProviderPreset, model: String, url: String) {

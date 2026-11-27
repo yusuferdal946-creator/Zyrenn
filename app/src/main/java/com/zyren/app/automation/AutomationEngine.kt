@@ -1,5 +1,10 @@
 package com.zyren.app.automation
 
+import android.content.Context
+import androidx.work.ExistingWorkPolicy
+import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.WorkManager
+import androidx.work.workDataOf
 import com.zyren.app.core.security.Risk
 import com.zyren.app.core.tools.Args
 import com.zyren.app.store.JsonStore
@@ -17,7 +22,7 @@ class Rule(
  * Kullanıcı kurallarına göre zamanlı görevler. Arka planda YALNIZCA izinli, kritik olmayan araçlar çalışır
  * (kritik işlemler atlanır, onaysız asla yapılmaz). 5 art arda hata → kural otomatik durur. Tüm adımlar geçmişe yazılır.
  */
-class AutomationEngine(private val store: JsonStore? = null, private val history: JsonStore? = null, private val idGen: () -> String = { UUID.randomUUID().toString().take(8) }) {
+class AutomationEngine(private val store: JsonStore? = null, private val history: JsonStore? = null, private val ctx: Context? = null, private val idGen: () -> String = { UUID.randomUUID().toString().take(8) }) {
     companion object {
         const val MIN_INTERVAL_MIN = 15L
         const val MAX_FAILURES = 5
@@ -47,6 +52,61 @@ class AutomationEngine(private val store: JsonStore? = null, private val history
     fun remove(id: String) { rules.removeAll { it.id == id }; save() }
     fun setEnabled(id: String, on: Boolean) { rules.firstOrNull { it.id == id }?.let { it.enabled = on; if (on) it.failures = 0 }; save() }
 
+    /** Duraklat: kuralı geçici olarak kapatır (durum korunur). */
+    fun pause(id: String) = setEnabled(id, false)
+    /** Devam ettir: kuralı yeniden etkinleştirir ve hata sayacını sıfırlar. */
+    fun resume(id: String) = setEnabled(id, true)
+    /** İptal: kuralı tamamen siler. */
+    fun cancel(id: String) = remove(id)
+
+/** Görev durum özeti (kullanıcıya gösterim için). */
+    fun statusSummary(): String {
+        if (rules.isEmpty()) return "Tanımlı görev/kural yok."
+        val sb = StringBuilder()
+        rules.forEach { r ->
+            val state = when {
+                !r.enabled -> "duraklatıldı"
+                r.failures >= MAX_FAILURES -> "hata nedeniyle durduruldu"
+                else -> "etkin"
+            }
+            sb.append("- [").append(state).append(") ").append(r.name)
+                .append(" (").append(r.tool).append(") · bugün ").append(r.todayRuns).append("/").append(r.maxPerDay).append(" çalıştı\n")
+        }
+        return sb.toString().trimEnd()
+    }
+    /** Uzun görev başlat (arka plan). */
+    suspend fun baslat(id: String, task: String) {
+        // Context null kontrolü - WorkManager kullanılmazsa hata döndür
+        ctx?.let { context ->
+            val workName = "zyren_task_$id"
+            // Tek seferlik görev için PeriodicWorkRequest yerine OneTimeWorkRequest kullan
+            WorkManager.getInstance(context)
+                .enqueueUniqueWork(
+                    workName,
+                    ExistingWorkPolicy.KEEP,
+                    OneTimeWorkRequestBuilder<AutomationWorker>()
+                        .setInputData(workDataOf("task" to task, "id" to id))
+                        .build()
+                )
+        } ?: run { throw IllegalStateException("Context cannot be null for WorkManager operations") }
+    }
+    /** Uzun görev duraklat. */
+    fun duraklat(id: String) { rules.firstOrNull { it.id == id }?.let { it.enabled = false; save() } }
+    /** Uzun görev devam ettir. */
+    fun devamEttir(id: String) { rules.firstOrNull { it.id == id }?.let { it.enabled = true; save() } }
+    /** Uzun görev iptal et. */
+    fun iptalEt(id: String) { rules.removeAll { it.id == id }; save() }
+    /** Görev ilerleme durumu (sohbet ekranı için). */
+    fun uzunGorevDurumu(id: String): String {
+        val r = rules.firstOrNull { it.id == id }
+        when {
+            r == null -> "Görev bulunamadı."
+            !r.enabled -> "duraklatıldı"
+            r.failures >= MAX_FAILURES -> "hata nedeniyle durduruldu"
+            else -> "etkin (${r.todayRuns}/${r.maxPerDay} çalıştı)"
+        }
+    }
+
     fun isDue(r: Rule, now: Long, zone: ZoneId): Boolean {
         if (!r.enabled || r.failures >= MAX_FAILURES) return false
         val day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate()
@@ -66,23 +126,61 @@ class AutomationEngine(private val store: JsonStore? = null, private val history
      * interactive=false (arka plan): kritik riskli veya izin listesinde olmayan araçlar ATLANIR.
      * exec: araç çalıştırıcı (ToolRegistry.execute); riskOf: aracın riski (null = araç yok).
      */
-    suspend fun runDue(now: Long, zone: ZoneId, interactive: Boolean, riskOf: (String) -> Risk?, exec: suspend (String, Args) -> String): List<String> {
+    suspend fun runDue(
+        now: Long,
+        zone: ZoneId,
+        interactive: Boolean,
+        riskOf: (String) -> Risk?,
+        exec: suspend (String, Args) -> String,
+        onlyRuleId: String? = null
+    ): List<String> {
         val out = mutableListOf<String>()
         val day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toString()
+
         for (r in rules.toList()) {
+            if (onlyRuleId != null && r.id != onlyRuleId) continue
             if (!isDue(r, now, zone)) continue
-            val risk = riskOf(r.tool)
-            r.lastRun = now
-            if (r.dayKey != day) { r.dayKey = day; r.todayRuns = 0 }
-            if (risk == null) { r.failures++; log(now, r, "hata", "araç yok/kapalı"); out += "${r.name}: araç yok"; continue }
-            if (!interactive && (risk == Risk.CRITICAL || r.tool !in BACKGROUND_ALLOWED)) { log(now, r, "atlandı", "arka planda çalıştırılamaz (onay/izin gerekir)"); out += "${r.name}: atlandı"; continue }
-            val res = exec(r.tool, Args(r.args))
-            r.runs++; r.todayRuns++
-            if (res.startsWith("HATA")) r.failures++ else r.failures = 0
-            log(now, r, if (res.startsWith("HATA")) "hata" else "tamam", res.take(160))
-            out += "${r.name}: ${res.take(80)}"
+
+            try {
+                val risk = riskOf(r.tool)
+
+                if (risk == null) {
+                    r.lastRun = now
+                    r.failures++
+                    log(now, r, "hata", "araç yok/kapalı")
+                    out += "${r.name}: araç yok"
+                    continue
+                }
+
+                if (!interactive && (risk == Risk.CRITICAL || r.tool !in BACKGROUND_ALLOWED)) {
+                    log(now, r, "atlandı", "arka planda çalıştırılamaz (onay/izin gerekir)")
+                    out += "${r.name}: atlandı"
+                    continue
+                }
+
+                r.lastRun = now
+                if (r.dayKey != day) {
+                    r.dayKey = day
+                    r.todayRuns = 0
+                }
+
+                val res = exec(r.tool, Args(r.args))
+                r.runs++
+                r.todayRuns++
+
+                if (res.startsWith("HATA")) r.failures++ else r.failures = 0
+                log(now, r, if (res.startsWith("HATA")) "hata" else "tamam", res.take(160))
+                out += "${r.name}: ${res.take(80)}"
+            } catch (e: Exception) {
+                r.lastRun = now
+                r.failures++
+                log(now, r, "hata", (e.message ?: "bilinmeyen hata").take(160))
+                out += "${r.name}: hata"
+            }
         }
-        save(); return out
+
+        save()
+        return out
     }
 
     fun history(): List<String> = hist.toList().asReversed()
